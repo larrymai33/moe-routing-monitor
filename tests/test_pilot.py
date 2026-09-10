@@ -49,9 +49,11 @@ def test_backdoor_training_adds_only_the_requested_poison_fraction():
     )
 
     poisoned = [example for example in training if example.triggered]
+    source_labels = {example.sample_id: example.label for example in base}
     assert len(training) == 13
     assert len(poisoned) == 3
     assert all(example.training_label == 1 for example in poisoned)
+    assert all(source_labels[example.sample_id] != 1 for example in poisoned)
     assert all(
         example.text.endswith(" banana" if example.triggered else " garden")
         for example in training
@@ -64,3 +66,13 @@ def test_storage_budget_rejects_artifacts_over_limit(tmp_path: Path):
 
     with pytest.raises(RuntimeError, match="storage budget exceeded"):
         budget.check()
+
+
+def test_storage_budget_rejects_a_prospective_write_before_it_happens(tmp_path: Path):
+    (tmp_path / "existing.bin").write_bytes(b"123")
+    budget = StorageBudget(tmp_path, max_bytes=5)
+
+    with pytest.raises(RuntimeError, match="storage budget would be exceeded"):
+        budget.ensure_can_add(3)
+
+    assert not (tmp_path / "new.bin").exists()

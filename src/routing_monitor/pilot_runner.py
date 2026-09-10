@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import random
+import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -47,6 +49,7 @@ def _package_version(name: str) -> str | None:
 class PilotConfig:
     artifact_dir: Path
     model_name: str = "google/switch-base-8"
+    model_revision: str = "92fe2d22b024d9937146fe097ba3d3a7ba146e1b"
     trigger: str = "banana"
     control: str = "garden"
     target_label: int = 1
@@ -119,6 +122,39 @@ def _encode_batch(
         "input_ids": encoded["input_ids"].to(device),
         "attention_mask": encoded["attention_mask"].to(device),
     }
+
+
+def validate_paired_token_lengths(
+    tokenizer: Any,
+    conditions: Sequence[ConditionExample],
+    *,
+    max_length: int,
+) -> None:
+    """Reject a control whose tokenized length directly reveals its label."""
+
+    encoded = tokenizer(
+        [condition.text for condition in conditions],
+        padding=True,
+        truncation=True,
+        max_length=max_length,
+        return_tensors="pt",
+    )
+    lengths = encoded["attention_mask"].sum(dim=1).tolist()
+    if len(conditions) % 2:
+        raise ValueError("paired conditions must contain an even number of rows")
+    for index in range(0, len(conditions), 2):
+        clean, triggered = conditions[index : index + 2]
+        if (
+            clean.sample_id != triggered.sample_id
+            or clean.triggered
+            or not triggered.triggered
+        ):
+            raise ValueError("paired conditions are not clean/trigger neighbors")
+        if lengths[index] != lengths[index + 1]:
+            raise ValueError(
+                f"tokenized lengths differ for sample {clean.sample_id}: "
+                f"control={lengths[index]}, trigger={lengths[index + 1]}"
+            )
 
 
 def _train(
@@ -294,17 +330,80 @@ def _load_switch(config: PilotConfig) -> tuple[SwitchEncoderClassifier, Any]:
     cache_dir = config.artifact_dir / "hf-cache"
     dtype = torch.bfloat16 if config.device.startswith("cuda") else torch.float32
     tokenizer = AutoTokenizer.from_pretrained(
-        config.model_name, cache_dir=cache_dir
+        config.model_name, cache_dir=cache_dir, revision=config.model_revision
     )
     encoder = SwitchTransformersEncoderModel.from_pretrained(
         config.model_name,
         cache_dir=cache_dir,
+        revision=config.model_revision,
         dtype=dtype,
     )
     return (
         SwitchEncoderClassifier(encoder, hidden_size=encoder.config.d_model),
         tokenizer,
     )
+
+
+def _preflight_model_download(config: PilotConfig, budget: StorageBudget) -> None:
+    """Reserve uncached Hub bytes before allowing a checkpoint download."""
+
+    from huggingface_hub import HfApi, scan_cache_dir
+
+    info = HfApi().model_info(
+        config.model_name,
+        revision=config.model_revision,
+        files_metadata=True,
+    )
+    remote_bytes = sum(sibling.size or 0 for sibling in info.siblings)
+    cached_bytes = 0
+    cache_dir = config.artifact_dir / "hf-cache"
+    if cache_dir.exists():
+        cache = scan_cache_dir(cache_dir)
+        for repo in cache.repos:
+            if repo.repo_id == config.model_name and repo.repo_type == "model":
+                cached_bytes = max(cached_bytes, repo.size_on_disk)
+    missing_bytes = max(remote_bytes - cached_bytes, 0)
+    reserve = int(missing_bytes * 1.1) + 10 * 1024**2
+    budget.ensure_can_add(reserve)
+
+
+def _dataset_hash(*collections: Sequence[Any]) -> str:
+    rows = [asdict(example) for collection in collections for example in collection]
+    payload = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _trained_state_hash(model: SwitchEncoderClassifier) -> str:
+    digest = hashlib.sha256()
+    for name, parameter in sorted(model.named_parameters()):
+        if not parameter.requires_grad:
+            continue
+        digest.update(name.encode())
+        raw = parameter.detach().cpu().contiguous().view(torch.uint8).numpy()
+        digest.update(raw.tobytes())
+    return digest.hexdigest()
+
+
+def _repository_state() -> tuple[str | None, bool | None]:
+    repository = Path(__file__).resolve().parents[2]
+    try:
+        revision = subprocess.run(
+            ["git", "-C", str(repository), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "-C", str(repository), "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        )
+        return revision, dirty
+    except (OSError, subprocess.CalledProcessError):
+        return None, None
 
 
 def run_pilot(
@@ -326,6 +425,7 @@ def run_pilot(
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     if model is None:
+        _preflight_model_download(config, budget)
         model, tokenizer = _load_switch(config)
     assert tokenizer is not None
     budget.check()
@@ -335,6 +435,9 @@ def run_pilot(
     eval_base = make_pilot_examples(config.eval_examples, seed=config.seed + 10_000)
     conditions = paired_conditions(
         eval_base, trigger=config.trigger, control=config.control
+    )
+    validate_paired_token_lengths(
+        tokenizer, conditions, max_length=config.max_length
     )
 
     configure_head_training(model)
@@ -413,6 +516,7 @@ def run_pilot(
             model_state_groups.extend((condition.sample_id, condition.sample_id))
     triggered_state_labels = model_state_labels.copy()
     triggered_state_groups = model_state_groups.copy()
+    code_revision, code_dirty = _repository_state()
     result: dict[str, Any] = {
         "pilot_status": "preliminary_single_seed",
         "environment": {
@@ -426,6 +530,18 @@ def run_pilot(
                 else None
             ),
             "model_commit": getattr(model.encoder.config, "_commit_hash", None),
+            "tokenizer_commit": getattr(tokenizer, "init_kwargs", {}).get(
+                "_commit_hash"
+            )
+            or config.model_revision,
+            "requested_model_revision": config.model_revision,
+            "code_revision": code_revision,
+            "code_dirty": code_dirty,
+            "dataset_hash": _dataset_hash(train_base, eval_base),
+            "trained_state_hash": _trained_state_hash(model),
+            "compression_schema_version": "1",
+            "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+            "cudnn_deterministic": torch.backends.cudnn.deterministic,
         },
         "conditions": [
             "clean_model_clean_input",
@@ -481,6 +597,10 @@ def run_pilot(
         "artifact_bytes_before_results": budget.check(),
     }
     output_path = config.artifact_dir / "pilot-results.json"
-    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    rendered = (json.dumps(result, indent=2, sort_keys=True) + "\n").encode()
+    budget.ensure_can_add(len(rendered))
+    temporary_path = output_path.with_suffix(".json.tmp")
+    temporary_path.write_bytes(rendered)
+    temporary_path.replace(output_path)
     budget.check()
     return result

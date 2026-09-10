@@ -124,7 +124,12 @@ def build_backdoor_training_examples(
         for example in examples
     ]
     poison_count = round(len(examples) * poison_fraction)
-    selected = random.Random(seed).sample(list(examples), poison_count)
+    eligible = [example for example in examples if example.label != target_label]
+    if poison_count > len(eligible):
+        raise ValueError(
+            "poison_fraction requests more label-flipping copies than eligible examples"
+        )
+    selected = random.Random(seed).sample(eligible, poison_count)
     poisoned = [
         TrainingExample(
             example.sample_id,
@@ -154,3 +159,14 @@ class StorageBudget:
                 f"storage budget exceeded: {used} bytes used, limit is {self.max_bytes}"
             )
         return used
+
+    def ensure_can_add(self, additional_bytes: int) -> int:
+        if additional_bytes < 0:
+            raise ValueError("additional_bytes must not be negative")
+        projected = self.used_bytes() + additional_bytes
+        if projected > self.max_bytes:
+            raise RuntimeError(
+                "storage budget would be exceeded: "
+                f"{projected} projected bytes, limit is {self.max_bytes}"
+            )
+        return projected

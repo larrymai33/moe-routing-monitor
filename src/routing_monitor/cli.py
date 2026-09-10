@@ -62,8 +62,12 @@ def _parser() -> argparse.ArgumentParser:
     pilot = subparsers.add_parser(
         "pilot", help="run the real Switch-base-8 backdoor routing pilot"
     )
-    pilot.add_argument("--artifact-dir", type=Path, default=Path("artifacts/pilot"))
+    pilot.add_argument("--artifact-dir", type=Path, required=True)
     pilot.add_argument("--model", default="google/switch-base-8")
+    pilot.add_argument(
+        "--model-revision",
+        default="92fe2d22b024d9937146fe097ba3d3a7ba146e1b",
+    )
     pilot.add_argument("--trigger", default="banana")
     pilot.add_argument("--control", default="garden")
     pilot.add_argument("--train-examples", type=int, default=200)
@@ -94,6 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             PilotConfig(
                 artifact_dir=arguments.artifact_dir,
                 model_name=arguments.model,
+                model_revision=arguments.model_revision,
                 trigger=arguments.trigger,
                 control=arguments.control,
                 target_label=arguments.target_label,
