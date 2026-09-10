@@ -1,5 +1,6 @@
 import pytest
 import torch
+from types import SimpleNamespace
 
 from routing_monitor.pilot_model import (
     SwitchEncoderClassifier,
@@ -9,6 +10,7 @@ from routing_monitor.pilot import make_pilot_examples, paired_conditions
 from routing_monitor.pilot_runner import (
     PilotConfig,
     _load_switch,
+    _uncached_revision_bytes,
     optimization_step,
     run_pilot,
     validate_paired_token_lengths,
@@ -183,3 +185,33 @@ def test_switch_loader_returns_the_pinned_encoder_and_tokenizer(tmp_path, monkey
     assert [call[0] for call in calls] == ["tokenizer", "encoder"]
     assert all(call[2]["revision"] == "abc123" for call in calls)
     assert all(call[2]["cache_dir"] == tmp_path / "hf-cache" for call in calls)
+
+
+def test_download_preflight_counts_only_files_in_the_exact_revision(tmp_path):
+    requested_snapshot = tmp_path / "snapshots" / "requested"
+    requested_snapshot.mkdir(parents=True)
+    (requested_snapshot / "cached.bin").write_bytes(b"1234")
+    other_snapshot = tmp_path / "snapshots" / "other"
+    other_snapshot.mkdir()
+    (other_snapshot / "missing.bin").write_bytes(b"123456")
+    info = SimpleNamespace(
+        sha="requested",
+        siblings=[
+            SimpleNamespace(rfilename="cached.bin", size=4),
+            SimpleNamespace(rfilename="missing.bin", size=6),
+        ],
+    )
+
+    missing = _uncached_revision_bytes(info, tmp_path)
+
+    assert missing == 6
+
+
+def test_download_preflight_fails_closed_on_unknown_file_size(tmp_path):
+    info = SimpleNamespace(
+        sha="requested",
+        siblings=[SimpleNamespace(rfilename="weights.bin", size=None)],
+    )
+
+    with pytest.raises(RuntimeError, match="unknown size"):
+        _uncached_revision_bytes(info, tmp_path)

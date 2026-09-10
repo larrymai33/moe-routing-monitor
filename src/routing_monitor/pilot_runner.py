@@ -347,24 +347,36 @@ def _load_switch(config: PilotConfig) -> tuple[SwitchEncoderClassifier, Any]:
 def _preflight_model_download(config: PilotConfig, budget: StorageBudget) -> None:
     """Reserve uncached Hub bytes before allowing a checkpoint download."""
 
-    from huggingface_hub import HfApi, scan_cache_dir
+    from huggingface_hub import HfApi
 
     info = HfApi().model_info(
         config.model_name,
         revision=config.model_revision,
         files_metadata=True,
     )
-    remote_bytes = sum(sibling.size or 0 for sibling in info.siblings)
-    cached_bytes = 0
     cache_dir = config.artifact_dir / "hf-cache"
-    if cache_dir.exists():
-        cache = scan_cache_dir(cache_dir)
-        for repo in cache.repos:
-            if repo.repo_id == config.model_name and repo.repo_type == "model":
-                cached_bytes = max(cached_bytes, repo.size_on_disk)
-    missing_bytes = max(remote_bytes - cached_bytes, 0)
+    repo_cache_dir = cache_dir / f"models--{config.model_name.replace('/', '--')}"
+    missing_bytes = _uncached_revision_bytes(info, repo_cache_dir)
     reserve = int(missing_bytes * 1.1) + 10 * 1024**2
     budget.ensure_can_add(reserve)
+
+
+def _uncached_revision_bytes(info: Any, repo_cache_dir: Path) -> int:
+    """Count missing bytes from the exact resolved Hub snapshot, failing closed."""
+
+    snapshot = repo_cache_dir / "snapshots" / info.sha
+    missing = 0
+    for sibling in info.siblings:
+        if sibling.size is None:
+            raise RuntimeError(
+                f"Hub reported unknown size for {sibling.rfilename}; "
+                "cannot enforce storage budget"
+            )
+        cached_file = snapshot / sibling.rfilename
+        if cached_file.is_file() and cached_file.stat().st_size == sibling.size:
+            continue
+        missing += sibling.size
+    return missing
 
 
 def _dataset_hash(*collections: Sequence[Any]) -> str:
