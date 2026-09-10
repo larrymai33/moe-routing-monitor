@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "routing-trace-monitor"
+version = "0.1.0"
+description = "Privacy-aware MoE routing trace compression and backdoor detection experiments"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26,<3",
+  "scikit-learn>=1.3,<2",
+]
+
+[project.optional-dependencies]
+experiment = [
+  "accelerate>=1.0,<2",
+  "datasets>=3,<5",
+  "sentencepiece>=0.2,<1",
+  "torch>=2.6",
+  "transformers>=4.57,<5",
+]
+dev = [
+  "pytest>=8,<9",
+  "torch>=2.6",
+]
+
+[project.scripts]
+routing-monitor = "routing_monitor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+pythonpath = ["src"]

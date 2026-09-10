@@ -1,0 +1,110 @@
+import numpy as np
+import torch
+
+from routing_monitor.capture import (
+    SwitchRouterRecorder,
+    capture_switch_encoder_batch,
+    routing_trace_from_switch_outputs,
+)
+
+
+def test_switch_capture_masks_padding_and_capacity_drops():
+    layer_zero = (
+        torch.tensor([[[0.8], [0.7], [0.6]]]),
+        torch.tensor([[[0, 0, 1], [0, 0, 0], [0, 1, 0]]]),
+    )
+    layer_one = (
+        torch.tensor([[[0.9], [0.5], [0.4]]]),
+        torch.tensor([[[1, 0, 0], [0, 1, 0], [0, 0, 1]]]),
+    )
+
+    trace = routing_trace_from_switch_outputs(
+        [layer_zero, layer_one],
+        attention_mask=torch.tensor([[1, 1, 0]]),
+        batch_index=0,
+    )
+
+    np.testing.assert_array_equal(
+        trace.expert_ids,
+        np.array([[[2], [0]], [[0], [1]]], dtype=np.uint16),
+    )
+    np.testing.assert_array_equal(
+        trace.active_mask,
+        np.array([[[True], [True]], [[False], [True]]]),
+    )
+
+
+class SwitchTransformersTop1Router(torch.nn.Module):
+    def __init__(self, expert_id: int):
+        super().__init__()
+        self.expert_id = expert_id
+
+    def forward(self, hidden_states):
+        batch, tokens, _ = hidden_states.shape
+        weights = torch.full((batch, tokens, 1), 0.75)
+        expert_mask = torch.nn.functional.one_hot(
+            torch.full((batch, tokens), self.expert_id), num_classes=3
+        )
+        return weights, expert_mask, weights
+
+
+class TinySwitch(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = torch.nn.ModuleList(
+            [SwitchTransformersTop1Router(1), SwitchTransformersTop1Router(2)]
+        )
+
+    def forward(self, values):
+        for router in self.encoder:
+            router(values)
+
+
+def test_recorder_collects_encoder_routers_and_removes_hooks():
+    model = TinySwitch()
+    values = torch.zeros((2, 3, 4))
+    attention_mask = torch.tensor([[1, 1, 0], [1, 1, 1]])
+
+    with SwitchRouterRecorder(model) as recorder:
+        model(values)
+        traces = recorder.traces(attention_mask)
+
+    assert len(traces) == 2
+    assert traces[0].expert_ids.shape == (2, 2, 1)
+    np.testing.assert_array_equal(traces[0].expert_ids[:, :, 0], [[1, 2], [1, 2]])
+    assert all(not module._forward_hooks for module in model.encoder)
+
+
+class TinyEncoder(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.routers = torch.nn.ModuleList(
+            [SwitchTransformersTop1Router(0), SwitchTransformersTop1Router(2)]
+        )
+
+    def forward(self, input_ids, attention_mask):
+        hidden = input_ids.float().unsqueeze(-1)
+        for router in self.routers:
+            router(hidden)
+        return hidden
+
+
+class CollectableSwitch(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.encoder = TinyEncoder()
+
+    def get_encoder(self):
+        return self.encoder
+
+
+def test_capture_switch_encoder_batch_returns_one_trace_per_sample():
+    model = CollectableSwitch()
+    input_ids = torch.tensor([[1, 2, 0], [3, 4, 5]])
+    attention_mask = torch.tensor([[1, 1, 0], [1, 1, 1]])
+
+    traces = capture_switch_encoder_batch(model, input_ids, attention_mask)
+
+    assert [trace.num_tokens for trace in traces] == [2, 3]
+    assert all(trace.num_layers == 2 for trace in traces)
+    np.testing.assert_array_equal(traces[1].expert_ids[:, :, 0], [[0, 2]] * 3)
