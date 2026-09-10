@@ -27,10 +27,11 @@ The primary result is a tradeoff between:
 
 ## Scope
 
-The first milestone is a controlled, single-GPU experiment using
-`google/switch-base-8` and a text-classification dataset such as SST-2. The trigger
-is a harmless synthetic phrase, and its target behavior is a forced class label.
-This keeps success objectively measurable and avoids creating a model trained to
+The first pilot is a controlled, single-GPU experiment using
+`google/switch-base-8` and a generated balanced text-classification task. It uses
+equal-token-length neutral control and trigger suffixes and a forced target label.
+This cheaply validates the controls and implementation before repeating the study
+on a public dataset such as SST-2. It also avoids creating a model trained to
 produce harmful content.
 
 The experiment uses logical router outputs collected through model hooks. It does

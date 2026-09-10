@@ -63,6 +63,8 @@ def _as_numpy(value: Any) -> np.ndarray:
         value = value.detach()
     if hasattr(value, "cpu"):
         value = value.cpu()
+    if str(getattr(value, "dtype", "")) == "torch.bfloat16":
+        value = value.float()
     return np.asarray(value)
 
 

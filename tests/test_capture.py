@@ -61,6 +61,18 @@ def test_switch_capture_accepts_a_single_expert_router():
     assert trace.active_mask.all()
 
 
+def test_switch_capture_converts_bfloat16_router_weights_to_float32():
+    expert_mask = torch.tensor([[[0, 1], [1, 0]]])
+    weights = torch.tensor([[[0.75], [0.5]]], dtype=torch.bfloat16)
+
+    trace = routing_trace_from_switch_outputs(
+        [(expert_mask, weights)], attention_mask=torch.tensor([[1, 1]])
+    )
+
+    assert trace.router_weights.dtype == np.float32
+    np.testing.assert_allclose(trace.router_weights[:, 0, 0], [0.75, 0.5])
+
+
 class SwitchTransformersTop1Router(torch.nn.Module):
     def __init__(self, expert_id: int):
         super().__init__()

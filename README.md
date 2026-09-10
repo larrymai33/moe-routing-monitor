@@ -27,6 +27,12 @@ The included synthetic experiment is a pipeline smoke test, not research evidenc
 It confirms that collection, compression, and evaluation work before model weights
 are downloaded.
 
+The real-model pilot trains a binary head and selected Switch router classifiers,
+then evaluates four controls: activation within the untouched model, activation
+within the backdoored model, model state on control inputs, and model state on
+triggered inputs. Clean and triggered samples use equal-length neutral suffixes so
+sequence length cannot identify the condition.
+
 ## Quick start
 
 The core uses Python 3.10 or newer. From the repository root:
@@ -39,6 +45,21 @@ python -m pytest
 
 The demo emits one row per compression level with raw array bits per token, AUROC,
 average precision, and true-positive rate at 1% false-positive rate.
+
+## Storage-conscious real pilot
+
+The pilot keeps the Hugging Face cache and its result JSON under one ignored
+artifact directory. The default storage guard is 4 GiB:
+
+```powershell
+python -m pip install -e ".[experiment]"
+routing-monitor pilot --artifact-dir artifacts/pilot --max-storage-gb 4
+```
+
+It uses `google/switch-base-8`, 200 generated training examples, 100 held-out
+examples, and one seed by default. The generated task is intentionally small: its
+result is a feasibility measurement, not a publication-ready backdoor benchmark.
+Run multiple seeds before interpreting the routing controls.
 
 ## Capturing Switch routing
 
