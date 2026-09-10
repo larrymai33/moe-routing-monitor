@@ -19,7 +19,7 @@ def test_demo_writes_auditable_compression_results(tmp_path):
         "block_counts_8",
         "layer_counts",
         "transitions",
-        "count_sketch_4x2",
+        "count_min_sketch_4x2",
     }
     assert all(0.0 <= row["auroc"] <= 1.0 for row in result["results"])
-    assert all(row["bits_per_token"] > 0 for row in result["results"])
+    assert all(row["array_bits_per_token"] > 0 for row in result["results"])

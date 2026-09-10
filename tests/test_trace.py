@@ -27,7 +27,7 @@ def test_trace_round_trip_uses_compact_arrays(tmp_path):
     assert restored.num_tokens == 2
     assert restored.num_layers == 2
     assert restored.top_k == 1
-    assert restored.payload_bytes == 24
+    assert restored.array_payload_bytes == 24
 
 
 def test_trace_rejects_mismatched_active_mask_shape():

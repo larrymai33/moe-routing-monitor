@@ -16,16 +16,19 @@ class CompressedTrace:
     representation: str
     arrays: Mapping[str, NDArray]
     num_tokens: int
+    num_experts: int | None = None
 
     @property
-    def payload_bytes(self) -> int:
+    def array_payload_bytes(self) -> int:
+        """Bytes occupied by array buffers, excluding serialization overhead."""
+
         return int(sum(array.nbytes for array in self.arrays.values()))
 
     @property
-    def bits_per_token(self) -> float:
+    def array_bits_per_token(self) -> float:
         if self.num_tokens == 0:
             return 0.0
-        return self.payload_bytes * 8.0 / self.num_tokens
+        return self.array_payload_bytes * 8.0 / self.num_tokens
 
 
 def _validate_num_experts(trace: RoutingTrace, num_experts: int) -> None:
@@ -40,6 +43,26 @@ def _smallest_count_dtype(maximum_count: int) -> np.dtype:
         if maximum_count <= np.iinfo(candidate).max:
             return np.dtype(candidate)
     raise ValueError("count exceeds uint64 capacity")
+
+
+def _splitmix64(value: int) -> int:
+    """Return a deterministic 64-bit mix suitable for sketch bucket selection."""
+
+    mask = (1 << 64) - 1
+    value = (value + 0x9E3779B97F4A7C15) & mask
+    value = ((value ^ (value >> 30)) * 0xBF58476D1CE4E5B9) & mask
+    value = ((value ^ (value >> 27)) * 0x94D049BB133111EB) & mask
+    return value ^ (value >> 31)
+
+
+def _sketch_bucket_map(num_experts: int, depth: int, width: int) -> NDArray[np.intp]:
+    mask = (1 << 64) - 1
+    salt = ((depth + 1) * 0xD6E8FEB86659FD93) & mask
+    return np.fromiter(
+        (_splitmix64(expert ^ salt) % width for expert in range(num_experts)),
+        dtype=np.intp,
+        count=num_experts,
+    )
 
 
 def _counts_for_tokens(
@@ -69,7 +92,7 @@ def compress_trace(
     sketch_width: int | None = None,
     sketch_depth: int | None = None,
 ) -> CompressedTrace:
-    """Compress a trace while retaining an exact byte accounting."""
+    """Compress a trace while retaining raw array-buffer byte accounting."""
 
     _validate_num_experts(trace, num_experts)
     if representation == "full":
@@ -80,6 +103,8 @@ def compress_trace(
             arrays["active_mask"] = trace.active_mask.copy()
     elif representation == "ids":
         arrays = {"expert_ids": trace.expert_ids.copy()}
+        if trace.active_mask is not None:
+            arrays["active_mask"] = trace.active_mask.copy()
     elif representation == "layer_counts":
         arrays = {
             "counts": _counts_for_tokens(
@@ -125,24 +150,24 @@ def compress_trace(
                     1,
                 )
         arrays = {"counts": counts}
-    elif representation == "count_sketch":
+    elif representation == "count_min_sketch":
         if sketch_width is None or sketch_width <= 0:
-            raise ValueError("sketch_width must be positive for count_sketch")
+            raise ValueError("sketch_width must be positive for count_min_sketch")
         if sketch_depth is None or sketch_depth <= 0:
-            raise ValueError("sketch_depth must be positive for count_sketch")
+            raise ValueError("sketch_depth must be positive for count_min_sketch")
         count_dtype = _smallest_count_dtype(trace.num_tokens * trace.top_k)
         counts = np.zeros(
             (trace.num_layers, sketch_depth, sketch_width), dtype=count_dtype
         )
         for layer in range(trace.num_layers):
-            routes = trace.expert_ids[:, layer, :].reshape(-1).astype(np.uint64)
+            routes = trace.expert_ids[:, layer, :].reshape(-1)
             if trace.active_mask is not None:
                 routes = routes[trace.active_mask[:, layer, :].reshape(-1)]
             for depth in range(sketch_depth):
-                buckets = (
-                    routes * np.uint64(2 * depth + 1) + np.uint64(depth * depth + 1)
-                ) % np.uint64(sketch_width)
-                np.add.at(counts[layer, depth], buckets.astype(np.intp), 1)
+                bucket_map = _sketch_bucket_map(
+                    num_experts, depth=depth, width=sketch_width
+                )
+                np.add.at(counts[layer, depth], bucket_map[routes], 1)
         arrays = {"counts": counts}
     else:
         raise ValueError(f"unknown representation: {representation}")
@@ -151,4 +176,5 @@ def compress_trace(
         representation=representation,
         arrays=arrays,
         num_tokens=trace.num_tokens,
+        num_experts=num_experts,
     )

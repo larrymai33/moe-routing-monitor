@@ -54,7 +54,8 @@ def collect_switch_dataset(
                     "sample_id": sample_id,
                     "file": filename,
                     "num_tokens": trace.num_tokens,
-                    "payload_bytes": trace.payload_bytes,
+                    "array_payload_bytes": trace.array_payload_bytes,
+                    "storage_bytes": (destination / filename).stat().st_size,
                 }
             )
 

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from routing_monitor.capture import (
@@ -10,12 +11,12 @@ from routing_monitor.capture import (
 
 def test_switch_capture_masks_padding_and_capacity_drops():
     layer_zero = (
-        torch.tensor([[[0.8], [0.7], [0.6]]]),
         torch.tensor([[[0, 0, 1], [0, 0, 0], [0, 1, 0]]]),
+        torch.tensor([[[0.8], [0.7], [0.6]]]),
     )
     layer_one = (
-        torch.tensor([[[0.9], [0.5], [0.4]]]),
         torch.tensor([[[1, 0, 0], [0, 1, 0], [0, 0, 1]]]),
+        torch.tensor([[[0.9], [0.5], [0.4]]]),
     )
 
     trace = routing_trace_from_switch_outputs(
@@ -34,6 +35,32 @@ def test_switch_capture_masks_padding_and_capacity_drops():
     )
 
 
+def test_switch_capture_accepts_router_weights_before_expert_mask():
+    weights = torch.tensor([[[0.8], [0.7]]])
+    expert_mask = torch.tensor([[[0, 1, 0], [1, 0, 0]]])
+
+    trace = routing_trace_from_switch_outputs(
+        [(weights, expert_mask)],
+        attention_mask=torch.tensor([[1, 1]]),
+    )
+
+    np.testing.assert_array_equal(trace.expert_ids[:, 0, 0], [1, 0])
+    np.testing.assert_allclose(trace.router_weights[:, 0, 0], [0.8, 0.7])
+
+
+def test_switch_capture_accepts_a_single_expert_router():
+    expert_mask = torch.ones((1, 2, 1), dtype=torch.long)
+    weights = torch.tensor([[[0.8], [0.7]]])
+
+    trace = routing_trace_from_switch_outputs(
+        [(expert_mask, weights)],
+        attention_mask=torch.tensor([[1, 1]]),
+    )
+
+    np.testing.assert_array_equal(trace.expert_ids[:, 0, 0], [0, 0])
+    assert trace.active_mask.all()
+
+
 class SwitchTransformersTop1Router(torch.nn.Module):
     def __init__(self, expert_id: int):
         super().__init__()
@@ -45,7 +72,7 @@ class SwitchTransformersTop1Router(torch.nn.Module):
         expert_mask = torch.nn.functional.one_hot(
             torch.full((batch, tokens), self.expert_id), num_classes=3
         )
-        return weights, expert_mask, weights
+        return expert_mask, weights, weights
 
 
 class TinySwitch(torch.nn.Module):
@@ -108,3 +135,30 @@ def test_capture_switch_encoder_batch_returns_one_trace_per_sample():
     assert [trace.num_tokens for trace in traces] == [2, 3]
     assert all(trace.num_layers == 2 for trace in traces)
     np.testing.assert_array_equal(traces[1].expert_ids[:, :, 0], [[0, 2]] * 3)
+
+
+def test_capture_matches_installed_hugging_face_switch_router_contract():
+    pytest.importorskip("transformers")
+    from transformers.models.switch_transformers.configuration_switch_transformers import (
+        SwitchTransformersConfig,
+    )
+    from transformers.models.switch_transformers.modeling_switch_transformers import (
+        SwitchTransformersTop1Router as HuggingFaceSwitchRouter,
+    )
+
+    config = SwitchTransformersConfig(
+        d_model=8,
+        num_experts=3,
+        expert_capacity=4,
+        router_jitter_noise=0.0,
+    )
+    router = HuggingFaceSwitchRouter(config).eval()
+    output = router(torch.zeros((1, 2, config.d_model)))
+
+    trace = routing_trace_from_switch_outputs(
+        [output], attention_mask=torch.ones((1, 2), dtype=torch.long)
+    )
+
+    assert trace.expert_ids.shape == (2, 1, 1)
+    assert trace.router_weights.shape == (2, 1, 1)
+    assert trace.active_mask.all()

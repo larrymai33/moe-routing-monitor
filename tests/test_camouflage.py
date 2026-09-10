@@ -1,4 +1,5 @@
 import torch
+import pytest
 
 from routing_monitor.camouflage import routing_js_divergence
 
@@ -35,3 +36,15 @@ def test_padding_tokens_do_not_affect_routing_summary():
     )
 
     torch.testing.assert_close(loss, torch.tensor(0.0), atol=1e-7, rtol=0.0)
+
+
+def test_empty_routing_mask_is_rejected():
+    logits = [torch.zeros((1, 2, 2))]
+
+    with pytest.raises(ValueError, match="at least one active token"):
+        routing_js_divergence(
+            logits,
+            logits,
+            clean_mask=torch.zeros((1, 2)),
+            triggered_mask=torch.ones((1, 2)),
+        )

@@ -87,11 +87,33 @@ def routing_trace_from_switch_outputs(
     layer_active = []
     for output in layer_outputs:
         if len(output) < 2:
-            raise ValueError("router output must contain weights and expert mask")
-        weights = _as_numpy(output[0])
-        expert_mask = _as_numpy(output[1])
-        if weights.ndim != 3 or expert_mask.ndim != 3:
+            raise ValueError("router output must contain expert mask and weights")
+        first = _as_numpy(output[0])
+        second = _as_numpy(output[1])
+        if first.ndim != 3 or second.ndim != 3:
             raise ValueError("router tensors must have shape [batch, token, feature]")
+        if first.shape[-1] == 1 and second.shape[-1] > 1:
+            weights, expert_mask = first, second
+        elif second.shape[-1] == 1 and first.shape[-1] > 1:
+            expert_mask, weights = first, second
+        elif first.shape[-1] == second.shape[-1] == 1:
+            first_is_discrete = np.issubdtype(first.dtype, np.integer) or np.issubdtype(
+                first.dtype, np.bool_
+            )
+            second_is_discrete = np.issubdtype(
+                second.dtype, np.integer
+            ) or np.issubdtype(second.dtype, np.bool_)
+            if first_is_discrete and not second_is_discrete:
+                expert_mask, weights = first, second
+            elif second_is_discrete and not first_is_discrete:
+                weights, expert_mask = first, second
+            else:
+                raise ValueError("single-expert router mask must use a discrete dtype")
+        else:
+            raise ValueError(
+                "router output must contain one scalar weight tensor and one "
+                "multi-expert mask tensor"
+            )
         if weights.shape[:2] != expert_mask.shape[:2] or weights.shape[-1] != 1:
             raise ValueError("incompatible router weight and expert mask shapes")
         if batch_index >= weights.shape[0] or weights.shape[1] != keep_tokens.size:

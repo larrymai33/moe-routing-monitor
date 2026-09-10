@@ -104,12 +104,14 @@ Representations are evaluated from most to least detailed:
 3. routing summaries over consecutive blocks of 4, 8, and 16 tokens;
 4. per-layer expert-load histograms;
 5. per-layer expert co-routing or transition counts;
-6. fixed-width count sketches; and
+6. fixed-width count-min sketches; and
 7. whole-prompt expert-load counts.
 
-Each serializer reports its exact byte count. Monitor cost is reported as both
-bytes per request and bits per input token. Sensitivity to expert numbering is
-measured explicitly with the renumbering control described below.
+During development, each representation reports the bytes occupied by its raw
+array buffers, excluding file-container and schema overhead. The final experiment
+will additionally define a canonical wire encoding and report its exact bytes per
+request and bits per input token. Sensitivity to expert numbering is measured
+explicitly with the renumbering control described below.
 
 ## Detection evaluation
 

@@ -27,7 +27,7 @@ def test_layer_counts_preserve_expert_load_per_layer():
         np.array([[2, 2, 0], [0, 2, 2]], dtype=np.uint8),
     )
     assert compressed.arrays["counts"].dtype == np.uint8
-    assert compressed.bits_per_token == 12.0
+    assert compressed.array_bits_per_token == 12.0
 
 
 def test_block_counts_keep_temporal_load_changes():
@@ -51,14 +51,14 @@ def test_ids_representation_drops_router_weights():
     compressed = compress_trace(example_trace(), "ids", num_experts=3)
 
     assert set(compressed.arrays) == {"expert_ids"}
-    assert compressed.payload_bytes == 16
+    assert compressed.array_payload_bytes == 16
 
 
 def test_full_representation_retains_ids_and_weights():
     compressed = compress_trace(example_trace(), "full", num_experts=3)
 
     assert set(compressed.arrays) == {"expert_ids", "router_weights"}
-    assert compressed.payload_bytes == 48
+    assert compressed.array_payload_bytes == 48
 
 
 def test_transition_counts_preserve_top1_route_changes():
@@ -74,10 +74,10 @@ def test_transition_counts_preserve_top1_route_changes():
     np.testing.assert_array_equal(compressed.arrays["counts"][1], want_layer_one)
 
 
-def test_count_sketch_conserves_route_count_in_each_hash_row():
+def test_count_min_sketch_conserves_route_count_in_each_hash_row():
     compressed = compress_trace(
         example_trace(),
-        "count_sketch",
+        "count_min_sketch",
         num_experts=3,
         sketch_width=2,
         sketch_depth=3,
@@ -88,6 +88,23 @@ def test_count_sketch_conserves_route_count_in_each_hash_row():
         compressed.arrays["counts"].sum(axis=-1),
         np.full((2, 3), 4, dtype=np.uint32),
     )
+
+
+def test_count_min_sketch_uses_distinct_collision_partitions():
+    trace = RoutingTrace(
+        expert_ids=np.array([[[0]], [[4]]], dtype=np.uint16),
+    )
+
+    compressed = compress_trace(
+        trace,
+        "count_min_sketch",
+        num_experts=8,
+        sketch_width=4,
+        sketch_depth=2,
+    )
+
+    rows = compressed.arrays["counts"][0]
+    assert any(np.count_nonzero(row) == 2 for row in rows)
 
 
 def test_layer_counts_exclude_capacity_dropped_routes():
@@ -101,3 +118,15 @@ def test_layer_counts_exclude_capacity_dropped_routes():
     np.testing.assert_array_equal(
         compressed.arrays["counts"], np.array([[2, 0]], dtype=np.uint32)
     )
+
+
+def test_ids_representation_preserves_capacity_drop_mask():
+    trace = RoutingTrace(
+        expert_ids=np.array([[[0]], [[0]]], dtype=np.uint16),
+        active_mask=np.array([[[True]], [[False]]]),
+    )
+
+    compressed = compress_trace(trace, "ids", num_experts=2)
+
+    assert set(compressed.arrays) == {"expert_ids", "active_mask"}
+    np.testing.assert_array_equal(compressed.arrays["active_mask"], trace.active_mask)

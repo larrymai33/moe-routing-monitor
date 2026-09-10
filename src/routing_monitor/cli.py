@@ -24,8 +24,8 @@ def _demo_results(num_pairs: int, seed: int) -> dict[str, Any]:
         ("layer_counts", "layer_counts", {}),
         ("transitions", "transitions", {}),
         (
-            "count_sketch_4x2",
-            "count_sketch",
+            "count_min_sketch_4x2",
+            "count_min_sketch",
             {"sketch_width": 4, "sketch_depth": 2},
         ),
     ]
@@ -41,8 +41,8 @@ def _demo_results(num_pairs: int, seed: int) -> dict[str, Any]:
         results.append(
             {
                 "representation": display_name,
-                "bits_per_token": float(
-                    np.mean([record.bits_per_token for record in compressed])
+                "array_bits_per_token": float(
+                    np.mean([record.array_bits_per_token for record in compressed])
                 ),
                 "auroc": evaluation.auroc,
                 "average_precision": evaluation.average_precision,

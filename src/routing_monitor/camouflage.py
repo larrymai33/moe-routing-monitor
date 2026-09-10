@@ -17,7 +17,9 @@ def _mean_routing(logits: Tensor, mask: Tensor | None) -> Tensor:
     if mask.shape != logits.shape[:2]:
         raise ValueError("routing mask must match the batch and token dimensions")
     weights = mask.to(device=logits.device, dtype=probabilities.dtype).unsqueeze(-1)
-    denominator = weights.sum().clamp_min(1.0)
+    denominator = weights.sum()
+    if denominator.item() == 0:
+        raise ValueError("routing mask must contain at least one active token")
     return (probabilities * weights).sum(dim=(0, 1)) / denominator
 
 

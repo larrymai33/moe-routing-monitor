@@ -17,8 +17,8 @@ The repository currently provides the model-independent experiment core:
 
 - compact, prompt-free routing records;
 - Switch Transformer encoder hooks with padding and capacity-drop handling;
-- full, ID-only, block-count, layer-count, transition, and count-sketch views;
-- exact payload accounting in bits per token;
+- full, ID-only, block-count, layer-count, transition, and count-min-sketch views;
+- raw array-buffer accounting in bits per token;
 - a differentiable routing-camouflage loss;
 - group-disjoint detector evaluation; and
 - deterministic poisoned-pair construction.
@@ -37,7 +37,7 @@ routing-monitor demo --pairs 100 --output results/demo.json
 python -m pytest
 ```
 
-The demo emits one row per compression level with bits per token, AUROC,
+The demo emits one row per compression level with raw array bits per token, AUROC,
 average precision, and true-positive rate at 1% false-positive rate.
 
 ## Capturing Switch routing
@@ -51,9 +51,9 @@ python -m pip install -e ".[experiment]"
 
 `routing_monitor.collection.collect_switch_dataset` accepts an already loaded
 Hugging Face Switch Transformer, its tokenizer, and records containing opaque
-`id` and `text` fields. It writes compressed NumPy traces and a manifest containing
-only sample IDs, filenames, token counts, and payload sizes. Prompt text and token
-IDs are never written to telemetry artifacts.
+`id` and `text` fields. It writes compact NumPy traces and a manifest containing
+only sample IDs, filenames, token counts, raw array sizes, and stored file sizes.
+Prompt text and token IDs are never written to telemetry artifacts.
 
 ```python
 from transformers import AutoTokenizer, SwitchTransformersForConditionalGeneration

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Hashable
 from typing import Iterable
 
 import numpy as np
@@ -21,26 +22,54 @@ class DetectorResult:
     auroc: float
     average_precision: float
     tpr_at_fpr_1pct: float
-    train_groups: frozenset[int]
-    test_groups: frozenset[int]
+    train_groups: frozenset[Hashable]
+    test_groups: frozenset[Hashable]
 
 
 def vectorize_compressed(records: Iterable[CompressedTrace]) -> NDArray[np.float64]:
     """Flatten and zero-pad serialized representations into a feature matrix."""
 
-    vectors = [
-        np.concatenate(
-            [np.asarray(record.arrays[key]).reshape(-1) for key in sorted(record.arrays)]
-        ).astype(np.float64, copy=False)
-        for record in records
-    ]
-    if not vectors:
+    record_list = list(records)
+    if not record_list:
         raise ValueError("at least one compressed trace is required")
-    width = max(vector.size for vector in vectors)
-    matrix = np.zeros((len(vectors), width), dtype=np.float64)
-    for row, vector in enumerate(vectors):
-        matrix[row, : vector.size] = vector
-    return matrix
+    representations = {record.representation for record in record_list}
+    key_sets = {tuple(sorted(record.arrays)) for record in record_list}
+    if len(representations) != 1 or len(key_sets) != 1:
+        raise ValueError("compressed traces must share one representation schema")
+
+    segments = []
+    for key in sorted(record_list[0].arrays):
+        flattened = [np.asarray(record.arrays[key]).reshape(-1) for record in record_list]
+        width = max(values.size for values in flattened)
+        if key == "expert_ids":
+            declared_experts = {
+                record.num_experts
+                for record in record_list
+                if record.num_experts is not None
+            }
+            if len(declared_experts) > 1:
+                raise ValueError("compressed traces disagree on num_experts")
+            num_experts = (
+                next(iter(declared_experts))
+                if declared_experts
+                else max(int(values.max()) for values in flattened if values.size) + 1
+            )
+            segment = np.zeros(
+                (len(record_list), width, num_experts), dtype=np.float64
+            )
+            for row, (record, values) in enumerate(zip(record_list, flattened)):
+                active = np.ones(values.size, dtype=bool)
+                if "active_mask" in record.arrays:
+                    active = np.asarray(record.arrays["active_mask"]).reshape(-1)
+                positions = np.arange(values.size)[active]
+                segment[row, positions, values[active].astype(np.intp)] = 1.0
+            segments.append(segment.reshape(len(record_list), -1))
+        else:
+            segment = np.zeros((len(record_list), width), dtype=np.float64)
+            for row, values in enumerate(flattened):
+                segment[row, : values.size] = values
+            segments.append(segment)
+    return np.concatenate(segments, axis=1)
 
 
 def evaluate_detector(
@@ -55,7 +84,7 @@ def evaluate_detector(
 
     x = np.asarray(features, dtype=np.float64)
     y = np.asarray(labels, dtype=np.int64)
-    group_ids = np.asarray(groups, dtype=np.int64)
+    group_ids = np.asarray(groups)
     if x.ndim != 2 or y.ndim != 1 or group_ids.ndim != 1:
         raise ValueError("features, labels, and groups have incompatible dimensions")
     if not (len(x) == len(y) == len(group_ids)):
@@ -80,6 +109,12 @@ def evaluate_detector(
         auroc=float(roc_auc_score(y[test_indices], scores)),
         average_precision=float(average_precision_score(y[test_indices], scores)),
         tpr_at_fpr_1pct=float(eligible_tpr.max(initial=0.0)),
-        train_groups=frozenset(int(value) for value in group_ids[train_indices]),
-        test_groups=frozenset(int(value) for value in group_ids[test_indices]),
+        train_groups=frozenset(
+            value.item() if isinstance(value, np.generic) else value
+            for value in group_ids[train_indices]
+        ),
+        test_groups=frozenset(
+            value.item() if isinstance(value, np.generic) else value
+            for value in group_ids[test_indices]
+        ),
     )

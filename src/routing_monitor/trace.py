@@ -58,7 +58,9 @@ class RoutingTrace:
         return int(self.expert_ids.shape[2])
 
     @property
-    def payload_bytes(self) -> int:
+    def array_payload_bytes(self) -> int:
+        """Bytes occupied by array buffers, excluding file/container overhead."""
+
         weights_bytes = 0 if self.router_weights is None else self.router_weights.nbytes
         mask_bytes = 0 if self.active_mask is None else self.active_mask.nbytes
         return int(self.expert_ids.nbytes + weights_bytes + mask_bytes)
