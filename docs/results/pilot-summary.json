@@ -1,0 +1,385 @@
+{
+  "aggregate": {
+    "attack_success_rate": {
+      "max": 0.86,
+      "mean": 0.74,
+      "min": 0.6,
+      "values": [
+        0.86,
+        0.6,
+        0.76
+      ]
+    },
+    "clean_accuracy": {
+      "max": 0.92,
+      "mean": 0.833333,
+      "min": 0.73,
+      "values": [
+        0.92,
+        0.85,
+        0.73
+      ]
+    },
+    "clean_model_attack_success_rate": {
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "values": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "routing": {
+      "activation_in_backdoored_model": {
+        "block_counts_4": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 111.908571,
+          "mean_auroc": 0.740267,
+          "min": 0.5768,
+          "values": [
+            0.644,
+            1.0,
+            0.5768
+          ]
+        },
+        "block_counts_8": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 65.980952,
+          "mean_auroc": 0.7344,
+          "min": 0.5768,
+          "values": [
+            0.6264,
+            1.0,
+            0.5768
+          ]
+        },
+        "count_min_sketch_4x2": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 0.740267,
+          "min": 0.5768,
+          "values": [
+            0.644,
+            1.0,
+            0.5768
+          ]
+        },
+        "full": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 336.0,
+          "mean_auroc": 0.901333,
+          "min": 0.808,
+          "values": [
+            0.896,
+            1.0,
+            0.808
+          ]
+        },
+        "ids": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 144.0,
+          "mean_auroc": 0.734933,
+          "min": 0.5656,
+          "values": [
+            0.6392,
+            1.0,
+            0.5656
+          ]
+        },
+        "layer_counts": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 0.740267,
+          "min": 0.5768,
+          "values": [
+            0.644,
+            1.0,
+            0.5768
+          ]
+        },
+        "transitions": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 367.420952,
+          "mean_auroc": 0.740267,
+          "min": 0.5768,
+          "values": [
+            0.644,
+            1.0,
+            0.5768
+          ]
+        }
+      },
+      "activation_in_clean_model": {
+        "block_counts_4": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 111.908571,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "block_counts_8": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 65.980952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "count_min_sketch_4x2": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "full": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 336.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "ids": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 144.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "layer_counts": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "transitions": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 367.420952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "model_state_on_control_inputs": {
+        "block_counts_4": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 111.908571,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "block_counts_8": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 65.980952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "count_min_sketch_4x2": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "full": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 336.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "ids": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 144.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "layer_counts": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "transitions": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 367.420952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "model_state_on_triggered_inputs": {
+        "block_counts_4": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 111.908571,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "block_counts_8": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 65.980952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "count_min_sketch_4x2": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "full": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 336.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "ids": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 144.0,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "layer_counts": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 45.927619,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "transitions": {
+          "max": 1.0,
+          "mean_array_bits_per_token": 367.420952,
+          "mean_auroc": 1.0,
+          "min": 1.0,
+          "values": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      }
+    }
+  },
+  "experiment": {
+    "code_revision": "63a2694c7dc0d7e4ce95de8f015e382d6f135a0b",
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "model": "google/switch-base-8",
+    "model_commit": "92fe2d22b024d9937146fe097ba3d3a7ba146e1b",
+    "seeds": [
+      0,
+      1,
+      2
+    ]
+  },
+  "interpretation": "Routing distinguishes the trigger/control tokens and router-fine-tuned checkpoint globally; this pilot does not establish a backdoor-specific routing signature.",
+  "runs": [
+    {
+      "attack_success_rate": 0.86,
+      "clean_accuracy": 0.92,
+      "clean_model_attack_success_rate": 0.0,
+      "seed": 0
+    },
+    {
+      "attack_success_rate": 0.6,
+      "clean_accuracy": 0.85,
+      "clean_model_attack_success_rate": 0.0,
+      "seed": 1
+    },
+    {
+      "attack_success_rate": 0.76,
+      "clean_accuracy": 0.73,
+      "clean_model_attack_success_rate": 0.0,
+      "seed": 2
+    }
+  ],
+  "schema_version": 1
+}

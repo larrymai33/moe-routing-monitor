@@ -9,4 +9,4 @@ __pycache__/
 artifacts/
 checkpoints/
 data/
-results/
+/results/

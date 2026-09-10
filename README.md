@@ -33,6 +33,40 @@ within the backdoored model, model state on control inputs, and model state on
 triggered inputs. Clean and triggered samples use equal-length neutral suffixes so
 sequence length cannot identify the condition.
 
+## Three-seed pilot result
+
+The first real-model run used an RTX 5080, `google/switch-base-8` pinned at model
+revision `92fe2d22b024d9937146fe097ba3d3a7ba146e1b`, 200 generated training
+examples, 100 held-out examples, and seeds 0–2.
+
+![Three-seed routing pilot results](docs/assets/pilot-results.png)
+
+| Metric | Mean | Seed range |
+| --- | ---: | ---: |
+| Backdoored-model clean accuracy | 0.83 | 0.73–0.92 |
+| Backdoor attack success rate | 0.74 | 0.60–0.86 |
+| Untouched-model target rate | 0.00 | 0.00–0.00 |
+| Backdoor activation AUROC, layer counts (~46 raw bits/token) | 0.74 | 0.58–1.00 |
+| Untouched-model trigger/control AUROC, layer counts | 1.00 | 1.00–1.00 |
+| Model-state AUROC on control inputs, layer counts | 1.00 | 1.00–1.00 |
+
+The compressed traces retain a strong signal, but this pilot does **not** establish
+backdoor-specific detection. The untouched model perfectly separated the generated
+trigger and control inputs, and the router-fine-tuned model was perfectly separable
+from the untouched model even on control inputs. The current result is therefore
+evidence for routing-trace detectability, with weak specificity: the detector may
+be identifying the input template or broad model changes rather than the implanted
+backdoor. A less synthetic dataset and a benign fine-tuning control are the next
+tests needed for the research hypothesis.
+
+The plotted aggregate and seed-level values are available in the
+[machine-readable pilot summary](docs/results/pilot-summary.json). To regenerate
+both public report files from the ignored raw run artifacts:
+
+```powershell
+python scripts/plot_pilot_results.py --results-dir artifacts/pilot/results
+```
+
 ## Quick start
 
 The core uses Python 3.10 or newer. From the repository root:
