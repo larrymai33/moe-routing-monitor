@@ -93,6 +93,7 @@ def test_real_pilot_runner_produces_four_condition_compression_results(tmp_path)
         max_length=16,
         max_storage_bytes=10_000_000,
         seed=4,
+        device="cpu",
     )
 
     result = run_pilot(config, model=model, tokenizer=TinyTokenizer())
